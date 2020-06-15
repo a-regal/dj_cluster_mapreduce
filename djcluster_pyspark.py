@@ -1,6 +1,7 @@
 import pyspark
 import rtree
 import pandas as pd
+import numpy as np
 from sklearn.metrics.pairwise import haversine_distances
 from pyspark import SparkContext
 
@@ -65,6 +66,7 @@ def cluster(values):
             else:
                 #Append to the cluster list
                 clusters.append(set(neighborhood))
+    return clusters
 
 #Create spark context
 sc = SparkContext()
@@ -73,8 +75,10 @@ sc = SparkContext()
 rdd = sc.parallelize(df.values[:,1:].tolist())
 
 
-mapper = rdd.map(lambda x: (None, knn(x, tree, r, min_pts)))
-reducer = mapper.reduceByKey(lambda x: cluster(x))
+mapper = rdd.map(lambda x: (1, knn(x, tree, r, min_pts)))
+reducer = mapper.groupByKey().mapValues(list).mapValues(cluster)#reduceByKey(lambda x, y: y)#.collect()
+result = reducer.take(1)
 
 with open('./results_pyspark.txt', 'w') as f:
-    f.write(reducer.collect())
+    for ix, cluster in enumerate(result[0][1]):
+        f.write(f'{ix} \t {cluster} \n')
